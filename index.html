@@ -101,7 +101,7 @@ svg {
 
 /* HOME */
 
-.homeIcon {
+.homeBody {
     fill: white;
     stroke: black;
     stroke-width: 2;
@@ -113,7 +113,7 @@ svg {
     stroke-width: 2;
 }
 
-.home.current {
+.homeCurrent {
     fill: red;
 }
 
@@ -392,16 +392,10 @@ function drawMap() {
         svg.appendChild(text);
     }
 
-    // ====================================
     // HOME描画
-    // ====================================
-
     drawHome(svg);
 
-    // ====================================
     // 方向矢印
-    // ====================================
-
     const arrow =
         document.createElementNS(
             "http://www.w3.org/2000/svg",
@@ -474,7 +468,7 @@ function drawHome(svg) {
 
     body.setAttribute(
         "class",
-        "homeIcon"
+        "homeBody"
     );
 
     body.setAttribute(
@@ -510,7 +504,7 @@ function updateMap() {
     // HOMEリセット
     document
         .getElementById("homeBody")
-        ?.classList.remove("current");
+        ?.classList.remove("homeCurrent");
 
     // 現在ノード
     const currentNode =
@@ -521,7 +515,7 @@ function updateMap() {
 
         document
             .getElementById("homeBody")
-            ?.classList.add("current");
+            ?.classList.add("homeCurrent");
     }
 
     // 通常ノード
@@ -585,7 +579,7 @@ function updateDirectionArrow() {
     const pos =
         nodePositions[node];
 
-    if (!direction) {
+    if (!direction || !pos) {
 
         arrow.setAttribute(
             "points",
@@ -689,18 +683,17 @@ function updateChoices() {
 // ========================================
 
 function step() {
-if (currentState === "HOME_END") {
 
-    log(`
-🏠 帰宅しました
+    // 帰宅済み
+    if (currentState === "HOME_END") {
 
-累積距離: ${totalDistance}m
-累積標高: ${totalElevation.toFixed(1)}m
-歩数: ${stepCount}
+        log(`
+🏠 帰宅済みです
 `);
 
-    return;
-}
+        return;
+    }
+
     const options =
         transitions[currentState];
 
@@ -778,28 +771,6 @@ ${currentState}
         + 1;
 
     // ログ
-    const logEntry = {
-
-        step: stepCount,
-
-        from: currentState,
-        action: choice.action,
-        to: choice.next,
-
-        fromNode: fromNode,
-        toNode: toNode,
-
-        edge: normalized,
-
-        distance: edge.distance,
-        elevation: edge.elevation,
-
-        totalDistance: totalDistance,
-        totalElevation: totalElevation
-    };
-
-    walkLog.push(logEntry);
-
     log(
 `[${stepCount}]
 ${fromNode} → ${toNode}
@@ -822,6 +793,27 @@ ${currentState}
     updateDisplay();
 
     updateMap();
+
+    // HOME到達で強制帰宅
+    if (
+        currentState === "HOME_E" ||
+        currentState === "HOME_W"
+    ) {
+
+        log(`
+🏠 帰宅しました
+
+累積距離: ${totalDistance}m
+累積標高: ${totalElevation.toFixed(1)}m
+歩数: ${stepCount}
+`);
+
+        currentState = "HOME_END";
+
+        updateDisplay();
+
+        updateMap();
+    }
 }
 
 // ========================================
@@ -831,6 +823,11 @@ ${currentState}
 function autoWalk(steps) {
 
     for (let i = 0; i < steps; i++) {
+
+        if (currentState === "HOME_END") {
+
+            break;
+        }
 
         step();
     }
