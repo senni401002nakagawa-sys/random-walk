@@ -3,7 +3,6 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <title>Random Walk</title>
 
 <style>
@@ -11,6 +10,7 @@
 body {
     font-family: sans-serif;
     padding: 20px;
+    line-height: 1.6;
 }
 
 button {
@@ -22,8 +22,22 @@ button {
 
 #topArea {
     display: flex;
-    gap: 20px;
+    gap: 30px;
     flex-wrap: wrap;
+}
+
+#leftPanel {
+    min-width: 300px;
+}
+
+#status {
+    margin-bottom: 20px;
+}
+
+#choices {
+    margin-top: 10px;
+    padding: 10px;
+    border: 1px solid #ccc;
 }
 
 #log {
@@ -36,9 +50,13 @@ button {
     background: #f8f8f8;
 }
 
+#mapContainer {
+    border: 1px solid #ccc;
+    padding: 10px;
+}
+
 svg {
     background: #fafafa;
-    border: 1px solid #ccc;
 }
 
 .node {
@@ -52,9 +70,13 @@ svg {
 }
 
 .edge {
-    stroke: #ccc;
+    stroke: #cccccc;
     stroke-width: 6;
     stroke-linecap: round;
+
+    transition:
+        stroke 0.2s,
+        stroke-width 0.2s;
 }
 
 .edge.visited {
@@ -71,10 +93,10 @@ svg {
     dominant-baseline: middle;
 }
 
-.home {
+.directionArrow {
     fill: orange;
     stroke: black;
-    stroke-width: 2;
+    stroke-width: 1;
 }
 
 </style>
@@ -86,19 +108,30 @@ svg {
 
 <div id="topArea">
 
-<div>
+    <div id="leftPanel">
 
-<p>現在状態: <span id="state"></span></p>
-<p>累積距離: <span id="distance">0</span>m</p>
-<p>累積標高: <span id="elevation">0</span>m</p>
-<p>歩数: <span id="steps">0</span></p>
+        <div id="status">
+            <p><strong>現在状態:</strong> <span id="state"></span></p>
+            <p><strong>累積距離:</strong> <span id="distance">0</span> m</p>
+            <p><strong>累積標高:</strong> <span id="elevation">0</span> m</p>
+            <p><strong>歩数:</strong> <span id="steps">0</span></p>
+        </div>
 
-<button id="stepButton">1歩進む</button>
-<button id="autoButton">20歩自動</button>
+        <div id="choices">
+            <strong>次の候補:</strong>
+            <div id="choiceList"></div>
+        </div>
 
-</div>
+        <button id="stepButton">1歩進む</button>
+        <button id="autoButton">20歩自動</button>
 
-<svg id="map" width="900" height="350"></svg>
+    </div>
+
+    <div id="mapContainer">
+
+        <svg id="map" width="900" height="350"></svg>
+
+    </div>
 
 </div>
 
@@ -106,54 +139,57 @@ svg {
 
 <script>
 
+// ========================================
+// データ
+// ========================================
+
 let transitions = {};
 let edges = {};
 
-let currentState = "HOME_START";
+let currentState = "A4_E";
 
 let totalDistance = 0;
 let totalElevation = 0;
+
+let walkLog = [];
 let stepCount = 0;
 
 let edgeVisitCounts = {};
+
+// 現在の辺
 let currentEdge = null;
+
+// ========================================
+// ノード座標
+// ========================================
 
 const nodePositions = {
 
-    A0:{x:80,y:80},
-    A1:{x:170,y:80},
-    A2:{x:260,y:80},
-    A3:{x:350,y:80},
-    A4:{x:440,y:80},
-    A5:{x:530,y:80},
-    A6:{x:620,y:80},
-    A7:{x:760,y:80},
+    A0: {x: 80,  y: 80},
+    A1: {x: 170, y: 80},
+    A2: {x: 260, y: 80},
+    A3: {x: 350, y: 80},
+    A4: {x: 440, y: 80},
+    A5: {x: 530, y: 80},
+    A6: {x: 620, y: 80},
+    A7: {x: 760, y: 80},
 
-    B0:{x:80,y:250},
-    B1:{x:170,y:250},
-    B2:{x:260,y:250},
-    B3:{x:350,y:250},
-    B4:{x:440,y:250},
-    B5:{x:530,y:250},
-    B6:{x:620,y:250},
-    B7:{x:760,y:250},
-
-    HOME:{x:395,y:80}
+    B0: {x: 80,  y: 250},
+    B1: {x: 170, y: 250},
+    B2: {x: 260, y: 250},
+    B3: {x: 350, y: 250},
+    B4: {x: 440, y: 250},
+    B5: {x: 530, y: 250},
+    B6: {x: 620, y: 250},
+    B7: {x: 760, y: 250}
 };
 
-async function loadCSV(path){
+// ========================================
+// CSV読み込み
+// ========================================
 
-    const response = await fetch(path);
+async function loadCSV(path) {
 
-    const text = await response.text();
-
-    return text
-        .trim()
-        .split(/\r?\n/)
-        .map(line =>
-            line.split(",").map(x => x.trim())
-        );
-}
     const response = await fetch(path);
 
     const text = await response.text();
@@ -161,37 +197,40 @@ async function loadCSV(path){
     return text
         .trim()
         .split("\n")
-        .map(line=>line.split(","));
+        .map(line => line.split(","));
 }
 
-function edgeKey(a,b){
+function edgeKey(a, b) {
 
     return `${a}_${b}`;
 }
 
-function normalizedEdgeKey(a,b){
+function normalizedEdgeKey(a, b) {
 
-    return [a,b].sort().join("_");
+    return [a, b].sort().join("_");
 }
 
-function parseNode(state){
+// ========================================
+// 初期化
+// ========================================
 
-    return state.split("_")[0];
-}
+async function initialize() {
 
-async function initialize(){
+    // =========================
+    // 状態遷移
+    // =========================
 
     const stateRows =
         await loadCSV("states.csv");
 
-    for(let i=1;i<stateRows.length;i++){
+    for (let i = 1; i < stateRows.length; i++) {
 
-        const [state,action,next] =
-            stateRows[i].map(x=>x.trim());
+        const [state, action, next] =
+            stateRows[i].map(x => x.trim());
 
-        if(!transitions[state]){
+        if (!transitions[state]) {
 
-            transitions[state]=[];
+            transitions[state] = [];
         }
 
         transitions[state].push({
@@ -200,24 +239,29 @@ async function initialize(){
         });
     }
 
+    // =========================
+    // 辺データ
+    // =========================
+
     const edgeRows =
         await loadCSV("edges.csv");
 
-    for(let i=1;i<edgeRows.length;i++){
+    for (let i = 1; i < edgeRows.length; i++) {
 
-        const [from,to,distance,elevation] =
-            edgeRows[i].map(x=>x.trim());
+        const [from, to, distance, elevation] =
+            edgeRows[i].map(x => x.trim());
 
-        edges[edgeKey(from,to)] = {
+        edges[edgeKey(from, to)] = {
 
-            distance:Number(distance),
-            elevation:Number(elevation)
+            distance: Number(distance),
+            elevation: Number(elevation)
         };
 
-        edges[edgeKey(to,from)] = {
+        // 逆方向
+        edges[edgeKey(to, from)] = {
 
-            distance:Number(distance),
-            elevation:-Number(elevation)
+            distance: Number(distance),
+            elevation: -Number(elevation)
         };
     }
 
@@ -226,25 +270,36 @@ async function initialize(){
     updateDisplay();
 }
 
-function drawMap(){
+// ========================================
+// 地図描画
+// ========================================
+
+function drawMap() {
 
     const svg =
         document.getElementById("map");
 
-    svg.innerHTML="";
+    svg.innerHTML = "";
 
-    const drawn = new Set();
+    // =========================
+    // 辺
+    // =========================
 
-    for(const key in edges){
+    const drawnEdges = new Set();
 
-        const [from,to] = key.split("_");
+    for (const key in edges) {
 
-        const norm =
-            normalizedEdgeKey(from,to);
+        const [from, to] = key.split("_");
 
-        if(drawn.has(norm)) continue;
+        const normalized =
+            normalizedEdgeKey(from, to);
 
-        drawn.add(norm);
+        if (drawnEdges.has(normalized)) {
+
+            continue;
+        }
+
+        drawnEdges.add(normalized);
 
         const p1 = nodePositions[from];
         const p2 = nodePositions[to];
@@ -255,28 +310,29 @@ function drawMap(){
                 "line"
             );
 
-        line.setAttribute("x1",p1.x);
-        line.setAttribute("y1",p1.y);
+        line.setAttribute("x1", p1.x);
+        line.setAttribute("y1", p1.y);
 
-        line.setAttribute("x2",p2.x);
-        line.setAttribute("y2",p2.y);
+        line.setAttribute("x2", p2.x);
+        line.setAttribute("y2", p2.y);
 
-        line.setAttribute("class","edge");
+        line.setAttribute("class", "edge");
 
         line.setAttribute(
             "id",
-            `edge_${norm}`
+            `edge_${normalized}`
         );
 
         svg.appendChild(line);
     }
 
-    for(const node in nodePositions){
+    // =========================
+    // ノード
+    // =========================
 
-        if(node==="HOME") continue;
+    for (const node in nodePositions) {
 
-        const pos =
-            nodePositions[node];
+        const pos = nodePositions[node];
 
         const circle =
             document.createElementNS(
@@ -284,10 +340,10 @@ function drawMap(){
                 "circle"
             );
 
-        circle.setAttribute("cx",pos.x);
-        circle.setAttribute("cy",pos.y);
+        circle.setAttribute("cx", pos.x);
+        circle.setAttribute("cy", pos.y);
 
-        circle.setAttribute("r",18);
+        circle.setAttribute("r", 18);
 
         circle.setAttribute(
             "class",
@@ -301,148 +357,257 @@ function drawMap(){
 
         svg.appendChild(circle);
 
+        // ラベル
         const text =
             document.createElementNS(
                 "http://www.w3.org/2000/svg",
                 "text"
             );
 
-        text.setAttribute("x",pos.x);
-        text.setAttribute("y",pos.y);
+        text.setAttribute("x", pos.x);
+        text.setAttribute("y", pos.y);
 
         text.setAttribute(
             "class",
             "label"
         );
 
-        text.textContent=node;
+        text.textContent = node;
 
         svg.appendChild(text);
     }
 
-    drawHome(svg);
-
-    updateMap();
-}
-
-function drawHome(svg){
-
-    const pos =
-        nodePositions.HOME;
-
-    const house =
+    // 方向矢印
+    const arrow =
         document.createElementNS(
             "http://www.w3.org/2000/svg",
             "polygon"
         );
 
-    house.setAttribute(
-        "points",
-        `
-        ${pos.x},${pos.y-18}
-        ${pos.x+14},${pos.y}
-        ${pos.x+10},${pos.y}
-        ${pos.x+10},${pos.y+16}
-        ${pos.x-10},${pos.y+16}
-        ${pos.x-10},${pos.y}
-        ${pos.x-14},${pos.y}
-        `
+    arrow.setAttribute(
+        "id",
+        "directionArrow"
     );
 
-    house.setAttribute(
+    arrow.setAttribute(
         "class",
-        "home"
+        "directionArrow"
     );
 
-    svg.appendChild(house);
+    svg.appendChild(arrow);
+
+    updateMap();
 }
 
-function updateMap(){
+// ========================================
+// 地図更新
+// ========================================
+
+function updateMap() {
+
+    // =========================
+    // ノード色リセット
+    // =========================
 
     document
         .querySelectorAll(".node")
-        .forEach(n=>n.classList.remove("current"));
+        .forEach(node => {
+
+            node.classList.remove("current");
+        });
+
+    // =========================
+    // 辺色リセット
+    // =========================
 
     document
         .querySelectorAll(".edge")
-        .forEach(e=>e.classList.remove("current"));
+        .forEach(edge => {
 
-    const node =
+            edge.classList.remove("current");
+        });
+
+    // =========================
+    // 現在ノード
+    // =========================
+
+    const currentNode =
         parseNode(currentState);
 
-    const current =
+    const currentElement =
         document.getElementById(
-            `node_${node}`
+            `node_${currentNode}`
         );
 
-    if(current){
+    if (currentElement) {
 
-        current.classList.add("current");
+        currentElement.classList.add("current");
     }
 
-    for(const edgeName in edgeVisitCounts){
+    // =========================
+    // 辺着色
+    // =========================
 
-        const edge =
+    for (const edgeName in edgeVisitCounts) {
+
+        const count =
+            edgeVisitCounts[edgeName];
+
+        const edgeElement =
             document.getElementById(
                 `edge_${edgeName}`
             );
 
-        if(!edge) continue;
+        if (!edgeElement) continue;
 
-        edge.classList.add("visited");
+        edgeElement.classList.add("visited");
 
-        if(edgeName===currentEdge){
+        edgeElement.setAttribute(
+            "stroke-width",
+            6 + count * 2
+        );
 
-            edge.classList.add("current");
+        // 現在辺
+        if (edgeName === currentEdge) {
+
+            edgeElement.classList.add("current");
         }
     }
+
+    updateDirectionArrow();
 }
 
-function updateDisplay(){
+// ========================================
+// 方向矢印
+// ========================================
 
-    document.getElementById("state")
-        .textContent=currentState;
+function updateDirectionArrow() {
 
-    document.getElementById("distance")
-        .textContent=totalDistance;
+    const arrow =
+        document.getElementById(
+            "directionArrow"
+        );
 
-    document.getElementById("elevation")
-        .textContent=
-            totalElevation.toFixed(1);
+    const [node, direction] =
+        currentState.split("_");
 
-    document.getElementById("steps")
-        .textContent=stepCount;
+    const pos =
+        nodePositions[node];
+
+    let points = "";
+
+    // 東
+    if (direction === "E") {
+
+        points =
+            `${pos.x + 28},${pos.y}
+             ${pos.x + 12},${pos.y - 8}
+             ${pos.x + 12},${pos.y + 8}`;
+    }
+
+    // 西
+    if (direction === "W") {
+
+        points =
+            `${pos.x - 28},${pos.y}
+             ${pos.x - 12},${pos.y - 8}
+             ${pos.x - 12},${pos.y + 8}`;
+    }
+
+    // 北
+    if (direction === "N") {
+
+        points =
+            `${pos.x},${pos.y - 28}
+             ${pos.x - 8},${pos.y - 12}
+             ${pos.x + 8},${pos.y - 12}`;
+    }
+
+    // 南
+    if (direction === "S") {
+
+        points =
+            `${pos.x},${pos.y + 28}
+             ${pos.x - 8},${pos.y + 12}
+             ${pos.x + 8},${pos.y + 12}`;
+    }
+
+    arrow.setAttribute(
+        "points",
+        points
+    );
 }
 
-function log(text){
+// ========================================
+// 補助
+// ========================================
 
-    const div =
-        document.getElementById("log");
+function parseNode(state) {
 
-    div.textContent += text + "\n";
-
-    div.scrollTop =
-        div.scrollHeight;
+    return state.split("_")[0];
 }
 
-function step(){
+// ========================================
+// 選択肢表示
+// ========================================
+
+function updateChoices() {
+
+    const choiceDiv =
+        document.getElementById(
+            "choiceList"
+        );
+
+    choiceDiv.innerHTML = "";
 
     const options =
         transitions[currentState];
 
-    if(!options){
+    if (!options) {
 
-        log(`ERROR:
-${currentState}
-に遷移がありません`);
+        choiceDiv.textContent =
+            "選択肢なし";
 
         return;
     }
 
+    for (const option of options) {
+
+        const p =
+            document.createElement("p");
+
+        p.textContent =
+            `${option.action} → ${option.next}`;
+
+        choiceDiv.appendChild(p);
+    }
+}
+
+// ========================================
+// 1歩
+// ========================================
+
+function step() {
+
+    const options =
+        transitions[currentState];
+
+    if (!options || options.length === 0) {
+
+        log(
+`ERROR:
+${currentState}
+に遷移がありません`
+        );
+
+        return;
+    }
+
+    // ランダム選択
     const choice =
         options[
             Math.floor(
-                Math.random()*options.length
+                Math.random() * options.length
             )
         ];
 
@@ -452,44 +617,64 @@ ${currentState}
     const toNode =
         parseNode(choice.next);
 
-    if(!nodePositions[fromNode]){
-
-        currentState=choice.next;
-
-        updateDisplay();
-
-        return;
-    }
-
     const edge =
         edges[
-            edgeKey(fromNode,toNode)
+            edgeKey(fromNode, toNode)
         ];
 
-    if(!edge){
+    if (!edge) {
 
-        log(`ERROR:
-${fromNode} -> ${toNode}
-の辺がありません`);
+        log(
+`ERROR:
+辺 ${fromNode} -> ${toNode}
+が見つかりません`
+        );
 
         return;
     }
 
+    // 累積
     totalDistance += edge.distance;
     totalElevation += edge.elevation;
 
     stepCount++;
 
+    // 現在辺
     const normalized =
         normalizedEdgeKey(
             fromNode,
             toNode
         );
 
-    currentEdge=normalized;
+    currentEdge = normalized;
 
+    // 通過回数
     edgeVisitCounts[normalized] =
-        (edgeVisitCounts[normalized]||0)+1;
+        (edgeVisitCounts[normalized] || 0)
+        + 1;
+
+    // ログ
+    const logEntry = {
+
+        step: stepCount,
+
+        from: currentState,
+        action: choice.action,
+        to: choice.next,
+
+        fromNode: fromNode,
+        toNode: toNode,
+
+        edge: normalized,
+
+        distance: edge.distance,
+        elevation: edge.elevation,
+
+        totalDistance: totalDistance,
+        totalElevation: totalElevation
+    };
+
+    walkLog.push(logEntry);
 
     log(
 `[${stepCount}]
@@ -503,45 +688,89 @@ ${currentState}
 標高変化: ${edge.elevation}m
 
 累積距離: ${totalDistance}m
-累積標高: ${totalElevation.toFixed(1)}m`
+累積標高: ${totalElevation.toFixed(1)}m
+`
     );
 
-    currentState=choice.next;
+    // 状態更新
+    currentState = choice.next;
 
     updateDisplay();
 
     updateMap();
-
-    // HOME通過判定
-    if(
-        (fromNode==="A3" && toNode==="A4") ||
-        (fromNode==="A4" && toNode==="A3")
-    ){
-
-        log(`
-🏠 帰宅可能地点を通過
-`);
-    }
 }
 
-function autoWalk(n){
+// ========================================
+// 自動歩行
+// ========================================
 
-    for(let i=0;i<n;i++){
+function autoWalk(steps) {
+
+    for (let i = 0; i < steps; i++) {
 
         step();
     }
 }
 
+// ========================================
+// 表示更新
+// ========================================
+
+function updateDisplay() {
+
+    document
+        .getElementById("state")
+        .textContent = currentState;
+
+    document
+        .getElementById("distance")
+        .textContent = totalDistance;
+
+    document
+        .getElementById("elevation")
+        .textContent =
+            totalElevation.toFixed(1);
+
+    document
+        .getElementById("steps")
+        .textContent = stepCount;
+
+    updateChoices();
+}
+
+// ========================================
+// ログ
+// ========================================
+
+function log(text) {
+
+    const logDiv =
+        document.getElementById("log");
+
+    logDiv.textContent += text + "\n";
+
+    logDiv.scrollTop =
+        logDiv.scrollHeight;
+}
+
+// ========================================
+// ボタン
+// ========================================
+
 document
     .getElementById("stepButton")
-    .addEventListener("click",step);
+    .addEventListener("click", step);
 
 document
     .getElementById("autoButton")
-    .addEventListener("click",()=>{
+    .addEventListener("click", () => {
 
         autoWalk(20);
     });
+
+// ========================================
+// 開始
+// ========================================
 
 initialize();
 
