@@ -149,6 +149,17 @@ async function loadCSV(path){
 
     return text
         .trim()
+        .split(/\r?\n/)
+        .map(line =>
+            line.split(",").map(x => x.trim())
+        );
+}
+    const response = await fetch(path);
+
+    const text = await response.text();
+
+    return text
+        .trim()
         .split("\n")
         .map(line=>line.split(","));
 }
