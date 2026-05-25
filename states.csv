@@ -81,3 +81,9 @@ B7_S,straight,B6_W
 B7_E,straight,A7_N
 HOME_START,left,A3_W
 HOME_START,right,A4_E
+A3_E,straight,HOME_E
+HOME_E,straight,A4_E
+A4_W,straight,HOME_W
+HOME_W,straight,A3_W
+A3_E,home,HOME_END
+A4_W,home,HOME_END
