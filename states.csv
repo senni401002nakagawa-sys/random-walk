@@ -79,5 +79,5 @@ B6_W,straight,B5_W
 B6_W,right,A6_N
 B7_S,straight,B6_W
 B7_E,straight,A7_N
-A3_W,straight,HOME_W
-A4_E,straight,HOME_E
+HOME_START,left,A3_W
+HOME_START,right,A4_E
