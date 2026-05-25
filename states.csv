@@ -1,4 +1,6 @@
 ﻿state,action,next
+HOME_START,left,A3_W
+HOME_START,right,A4_E
 A0_N,straight,A1_E
 A0_W,straight,B0_S
 A1_N,left,A0_W
@@ -15,7 +17,6 @@ A2_W,left,B2_S
 A2_W,straight,A1_W
 A3_N,left,A2_W
 A3_N,right,A4_E
-A3_E,straight,A4_E
 A3_E,right,B3_S
 A3_W,left,B3_S
 A3_W,straight,A2_W
@@ -24,7 +25,6 @@ A4_N,right,A5_E
 A4_E,straight,A5_E
 A4_E,right,B4_S
 A4_W,left,B4_S
-A4_W,straight,A3_W
 A5_N,left,A4_W
 A5_N,right,A6_E
 A5_E,straight,A6_E
@@ -79,11 +79,7 @@ B6_W,straight,B5_W
 B6_W,right,A6_N
 B7_S,straight,B6_W
 B7_E,straight,A7_N
-HOME_START,left,A3_W
-HOME_START,right,A4_E
-A3_E,straight,HOME_E
-HOME_E,straight,A4_E
-A4_W,straight,HOME_W
-HOME_W,straight,A3_W
-A3_E,home,HOME_END
-A4_W,home,HOME_END
+A3_E,straight,HOME_W
+A4_W,straight,HOME_E
+HOME_W,home,HOME_END
+HOME_E,home,HOME_END

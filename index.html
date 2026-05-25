@@ -689,7 +689,18 @@ function updateChoices() {
 // ========================================
 
 function step() {
+if (currentState === "HOME_END") {
 
+    log(`
+🏠 帰宅しました
+
+累積距離: ${totalDistance}m
+累積標高: ${totalElevation.toFixed(1)}m
+歩数: ${stepCount}
+`);
+
+    return;
+}
     const options =
         transitions[currentState];
 
